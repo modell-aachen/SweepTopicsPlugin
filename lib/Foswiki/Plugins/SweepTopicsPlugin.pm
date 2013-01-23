@@ -156,9 +156,9 @@ sub restSweep {
 
     my ($meta, $text) = Foswiki::Func::readTopic($cweb, $ctopic);
 
-    return 'Controller table not found!' unless $text =~ m#\|\h+\*?Action\*?\h+\|\h+\*?Type\*?\h+\|\h+\*?Web\*?\h+\|\h+\*?Query\*?\h+\|\h*#g;
+    return 'Controller table not found!' unless $text =~ m#^\|\s+\*?Action\*?\s+\|\s+\*?Type\*?\s+\|\s+\*?Web\*?\s+\|\s+\*?Query\*?\s+\|\s*?\n#g;
 
-    while ($text =~ m#\G\s\|\h*([^|\s]+)\h*\|\h*([^|\s]*)\h*\|\h*([^|\s]*)\h*\|\h*([^|]+?)\h*\|\h*#g) {
+    while ($text =~ m#\G\|\s*([^|\s]+)\s*\|\s*([^|\s]*)\s*\|\s*([^|\s]*)\s*\|\s*([^|]+?)\s*\|\s*?\n#g) {
         my $action = $1;
         my $type = $2;
         my $sweepWeb = $3 || $cweb;
