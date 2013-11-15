@@ -1,0 +1,75 @@
+---+!! !SweepTopicsPlugin
+<!--
+One line description, required for extensions repository catalog.
+BuildContrib will fill in the SHORTDESCRIPTION with the value of
+$SHORTDESCRIPTION from the .pm module, or you can redefine it here if you
+prefer.
+   * Set SHORTDESCRIPTION = %$SHORTDESCRIPTION%
+-->
+%SHORTDESCRIPTION%
+
+%TOC%
+
+---++ Usage
+Es muss eine Kontrollseite mit den &Uuml;berschriften
+<pre>
+| *Action* | *Type* | *Web* | *Query* |
+</pre>
+angelegt werden. Dort k&ouml;nnen mehrere L&ouml;schauftr&auml;ge in je einer Zeile angelegt werden. Es sind zu definieren:
+| *Parameter* | *Funktion* |
+| =Action= | Was mit den Seiten zu tun ist, im Moment ist nur =Delete= (also verschieben ins TrashWeb) m&ouml;glich. |
+| =Type= | Der Typ der Suche. Zur Zeit wird nur =QuerySearch= (Foswiki-Standardsuche mit type="query") unterst&uuml;tzt. |
+| =Web= | Das Bereich, in dem die Seiten gesucht werden. Falls leer, wird der Bereich mit dem Kontrollartikel genutzt |
+| =Query= | Mit dieser Query werden die zu l&ouml;schenden Seiten gesucht. |
+
+Durch folgenden Befehl kann ein Test-Knopf hinzugef&uuml;gt werden, welcher die zu l&ouml;schenden Seiten anzeigt:
+<pre>
+%<nop>INCLUDE{"%<nop>SYSTEMWEB%.SweepTopicsPlugin" section="TestButton"}%
+</pre>
+<!--
+%STARTSECTION{"TestButton"}%
+<form action="%SCRIPTURL{"rest"}%/SweepTopicsPlugin/sweep">
+<input type="hidden" name="listonly" value="1" />
+<input type="hidden" name="cweb" value="%INCLUDINGWEB%" />
+<input type="hidden" name="ctopic" value="%INCLUDINGTOPIC%" />
+<input type="submit" value="Test run!">
+</form>
+%ENDSECTION{"TestButton"}%
+-->
+
+Auf dem Server ist dann ein =CronJob= f&uuml;r den =Apache= Nutzer mit folgendem Inhalt anzulegen:
+<pre>
+# Bitte Sicherstellen, dass das als Apache Nutzer ausgefuehrt wird:
+cd &lt;qwiki&gt/bin; ./rest /SweepTopicsPlugin/sweep cweb=&lt;Web von Kontrollseite&gt ctopic=&lt;Seitenname von Kontrollseite&gt;;
+</pre>
+
+In der WorkArea von dem SweepTopicsPlugin wird eine Logdatei mit der epoch-Zeit angelegt, _falls_ Seiten gel&ouml;scht wurden.
+
+---++ Examples
+Alle Seiten im Bereich =TestBereich= l&ouml;schen, die mit =Test= anfangen und &auml;lter als 7 Tage sind:
+<pre>
+| *Action* | *Type* | *Web* | *Query* |
+| Delete | StandardSearch | TestBereich | name ~ 'Test*' and info.date < %<nop>CALC{"$TIMEADD($TIME(), -7, day)"}% |
+%<nop>INCLUDE{"%<nop>SYSTEMWEB%.SweepTopicsPlugin" section="TestButton"}%
+</pre>
+
+---++ Installation Instructions
+
+%$INSTALL_INSTRUCTIONS%
+
+---++ Info
+
+Many thanks to the following sponsors for supporting this work:
+   * Acknowledge any sponsors here
+
+|  Author(s): | |
+|  Copyright: | &copy; |
+|  License: | [[http://www.gnu.org/licenses/gpl.html][GPL (Gnu General Public License)]] |
+|  Release: | %$RELEASE% |
+|  Version: | %$VERSION% |
+|  Change History: | <!-- versions below in reverse order -->&nbsp; |
+|  Dependencies: | %$DEPENDENCIES% |
+|  Home page: | http://foswiki.org/bin/view/Extensions/SweepTopicsPlugin |
+|  Support: | http://foswiki.org/bin/view/Support/SweepTopicsPlugin |
+
+<!-- Do _not_ attempt to edit this topic; it is auto-generated. -->

@@ -1,0 +1,4 @@
+# Release manifest for SweepTopicsPlugin
+data/System/SweepTopicsPlugin.txt 0644 Documentation
+lib/Foswiki/Plugins/SweepTopicsPlugin.pm 0644 Perl module
+
