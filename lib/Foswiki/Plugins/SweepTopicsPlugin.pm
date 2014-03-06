@@ -21,66 +21,13 @@ use Foswiki::Func    ();    # The plugins API
 use Foswiki::Plugins ();    # For the API version
 use Error ':try';
 
-# $VERSION is referred to by Foswiki, and is the only global variable that
-# *must* exist in this package. This should always be in the format
-# $Rev$ so that Foswiki can determine the checked-in status of the
-# extension.
 our $VERSION = '1.0';
 
-# $RELEASE is used in the "Find More Extensions" automation in configure.
-# It is a manually maintained string used to identify functionality steps.
-# You can use any of the following formats:
-# tuple   - a sequence of integers separated by . e.g. 1.2.3. The numbers
-#           usually refer to major.minor.patch release or similar. You can
-#           use as many numbers as you like e.g. '1' or '1.2.3.4.5'.
-# isodate - a date in ISO8601 format e.g. 2009-08-07
-# date    - a date in 1 Jun 2009 format. Three letter English month names only.
-# Note: it's important that this string is exactly the same in the extension
-# topic - if you use %$RELEASE% with BuildContrib this is done automatically.
 our $RELEASE = "1.0";
 
-# Short description of this plugin
-# One line description, is shown in the %SYSTEMWEB%.TextFormattingRules topic:
 our $SHORTDESCRIPTION = 'Deletes obviously unused topics.';
 
-# You must set $NO_PREFS_IN_TOPIC to 0 if you want your plugin to use
-# preferences set in the plugin topic. This is required for compatibility
-# with older plugins, but imposes a significant performance penalty, and
-# is not recommended. Instead, leave $NO_PREFS_IN_TOPIC at 1 and use
-# =$Foswiki::cfg= entries, or if you want the users
-# to be able to change settings, then use standard Foswiki preferences that
-# can be defined in your %USERSWEB%.SitePreferences and overridden at the web
-# and topic level.
-#
-# %SYSTEMWEB%.DevelopingPlugins has details of how to define =$Foswiki::cfg=
-# entries so they can be used with =configure=.
 our $NO_PREFS_IN_TOPIC = 1;
-
-=begin TML
-
----++ initPlugin($topic, $web, $user) -> $boolean
-   * =$topic= - the name of the topic in the current CGI query
-   * =$web= - the name of the web in the current CGI query
-   * =$user= - the login name of the user
-   * =$installWeb= - the name of the web the plugin topic is in
-     (usually the same as =$Foswiki::cfg{SystemWebName}=)
-
-*REQUIRED*
-
-Called to initialise the plugin. If everything is OK, should return
-a non-zero value. On non-fatal failure, should write a message
-using =Foswiki::Func::writeWarning= and return 0. In this case
-%<nop>FAILEDPLUGINS% will indicate which plugins failed.
-
-In the case of a catastrophic failure that will prevent the whole
-installation from working safely, this handler may use 'die', which
-will be trapped and reported in the browser.
-
-__Note:__ Please align macro names with the Plugin name, e.g. if
-your Plugin is called !FooBarPlugin, name macros FOOBAR and/or
-FOOBARSOMETHING. This avoids namespace issues.
-
-=cut
 
 sub initPlugin {
     my ( $topic, $web, $user, $installWeb ) = @_;
@@ -92,51 +39,11 @@ sub initPlugin {
         return 0;
     }
 
-    # Example code of how to get a preference value, register a macro
-    # handler and register a RESTHandler (remove code you do not need)
-
-    # Set your per-installation plugin configuration in LocalSite.cfg,
-    # like this:
-    # $Foswiki::cfg{Plugins}{SweepTopicsPlugin}{ExampleSetting} = 1;
-    # See %SYSTEMWEB%.DevelopingPlugins#ConfigSpec for information
-    # on integrating your plugin configuration with =configure=.
-
-    # Always provide a default in case the setting is not defined in
-    # LocalSite.cfg.
-    # my $setting = $Foswiki::cfg{Plugins}{SweepTopicsPlugin}{ExampleSetting} || 0;
-
-    # Allow a sub to be called from the REST interface
-    # using the provided alias
     Foswiki::Func::registerRESTHandler( 'sweep', \&restSweep );
 
     # Plugin correctly initialized
     return 1;
 }
-
-=pod
-
----++ restExample($session) -> $text
-
-This is an example of a sub to be called by the =rest= script. The parameter is:
-   * =$session= - The Foswiki object associated to this session.
-
-Additional parameters can be recovered via the query object in the $session, for example:
-
-my $query = $session->{request};
-my $web = $query->{param}->{web}[0];
-
-If your rest handler adds or replaces equivalent functionality to a standard script
-provided with Foswiki, it should set the appropriate context in its switchboard entry.
-A list of contexts are defined in %SYSTEMWEB%.IfStatements#Context_identifiers.
-
-For more information, check %SYSTEMWEB%.CommandAndCGIScripts#rest
-
-For information about handling error returns from REST handlers, see
-Foswiki:Support.Faq1
-
-*Since:* Foswiki::Plugins::VERSION 2.0
-
-=cut
 
 sub restSweep {
     my ( $session, $subject, $verb, $response ) = @_;
