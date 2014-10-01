@@ -60,12 +60,13 @@ sub restSweep {
 
     my $list = '<p>Result:';
     my $deletedSth = 0;
+    my $transitionedSth = 0;
 
     my ($meta, $text) = Foswiki::Func::readTopic($cweb, $ctopic);
 
     return 'Controller table not found!' unless $text =~ m#^\|\s+\*?Action\*?\s+\|\s+\*?Type\*?\s+\|\s+\*?Web\*?\s+\|\s+\*?Query\*?\s+\|\s*?\n#g;
 
-    while ($text =~ m#\G\|\s*([^|\s]+)\s*\|\s*([^|\s]*)\s*\|\s*([^|\s]*)\s*\|\s*([^|]+?)\s*\|\s*?\n#g) {
+    while ($text =~ m#\G\|\s*([^|]+)\s*\|\s*([^|\s]*)\s*\|\s*([^|\s]*)\s*\|\s*([^|]+?)\s*\|\s*?\n#g) {
         my $action = $1;
         my $type = $2;
         my $sweepWeb = $3 || $cweb;
@@ -81,33 +82,87 @@ sub restSweep {
             $list .= "!Unknown search type!\n";
             next;
         }
-        if ($action ne 'Delete') {
+
+        if ($action eq 'Delete') {
+            foreach my $eachWebTopic (@topicArray) {
+                my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
+                $list .= "$eachWeb.$eachTopic <br />\n";
+                unless ($listonly) {
+                    try {
+                        $deletedSth++;
+                        _trashTopic( $eachWeb, $eachTopic );
+                    } catch Error::Simple with {
+                        my $e = shift;
+                        Foswiki::Func::writeWarning( $e );
+                        $list .= '! Error !';
+                    }
+                }
+            }
+        } elsif ($action =~ m#Transition\((.*)\)#) {
+            my $transitionsString = $1;
+            my @transitions = ();
+            while($transitionsString =~ m#{(.*?)}#g) {
+                my $params = $1;
+                my $transitionParams = {};
+                unless ($params =~ m#state="(.*?)"#) {
+                    Foswiki::Func::writeWarning("Missing state in $action");
+                    $list .= '! Error !';
+                    next;
+                }
+                $transitionParams->{state} = $1;
+                unless ($params =~ m#action="(.*?)"#) {
+                    Foswiki::Func::writeWarning("Missing action in $action");
+                    $list .= '! Error !';
+                    next;
+                }
+                $transitionParams->{action} = $1;
+                my $remark;
+                if ($params =~ m#remark="(.*?)"#) {
+                    $remark = $1;
+                }
+                my $deleteComments;
+                if ($params =~ m#deleteComments="(.*?)"#) {
+                    $transitionParams->{action} = $1;
+                }
+                $transitionParams->{breaklock} = 1;
+                if ($params =~ m#breaklock="(.*?)"#) {
+                    $transitionParams->{breaklock} = $1;
+                }
+                push(@transitions, $transitionParams);
+            }
+            foreach my $eachWebTopic (@topicArray) {
+                my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
+                $list .= "$eachWeb.$eachTopic <br />\n";
+                unless ($listonly) {
+                    try {
+                        $transitionedSth++;
+                        foreach my $transition (@transitions) {
+                            my $report = Foswiki::Plugins::KVPPlugin::transitionTopic($session, $eachWeb, $eachTopic, $transition->{action}, $transition->{state}, $transition->{remark}, $transition->{deleteComments}, $transition->{breaklock});
+                            next unless $report;
+                            $eachWeb = $report->{webAfterTransition} || $eachWeb;
+                            $eachTopic = $report->{topicAfterTransition} || $eachTopic;
+                        }
+                    } catch Foswiki::OopsException with {
+                        my $e = shift;
+                        my $params = $e->{params};
+                        Foswiki::Func::writeWarning( "def: $e->{def} params: ".join(',', @$params ));
+                        $list .= '! Error !';
+                    }
+                }
+            }
+        } else {
             # nothing but delete yet
             $list .= "!Unknown action: '$action'!\n";
             next;
         }
-
-        foreach my $eachWebTopic (@topicArray) {
-            my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
-            $list .= "$eachWeb.$eachTopic <br />\n";
-            unless ($listonly) {
-                try {
-                    $deletedSth++;
-                    _trashTopic( $eachWeb, $eachTopic );
-                } catch Error::Simple with {
-                    my $e = shift;
-                    Foswiki::Func::writeWarning( $e );
-                    $list .= '! Error !';
-                }
-            }
-        }
     }
-    $list .= "</p>\n<p>Deleted: $deletedSth </p>\n"; # This will be meaningless on Test-runs, yet reassuring
+    $list .= "</p>\n<p>Deleted: $deletedSth </p>\n"; # These will be meaningless on Test-runs, yet reassuring
+    $list .= "</p>\n<p>Transitioned: $transitionedSth </p>\n";
     $list = "<html><head></head><body>$list</body></html>";
     if ($listonly) {
         return $list;
     }
-    if ($deletedSth) {
+    if ($deletedSth || $transitionedSth) {
         my $w = Foswiki::Func::getWorkArea( "SweepTopicsPlugin" );
         open FILE, ">", $w.'/'.time().'.log';
         print FILE $list;
