@@ -75,7 +75,7 @@ sub restSweep {
         my @topicArray;
         if ($type =~ m/^\s*QuerySearch\s*$/) {
             @topicArray = _doStandardSearch($query, $sweepWeb, $ctopic);
-        } elsif ($type =~ m/^\s*SolrSearch\s*$/ && 'not yet' eq 'implemented') {
+        } elsif ($type =~ m/^\s*SolrSearch\s*$/) {
             @topicArray = _doSolrSearch($query, $sweepWeb, $ctopic);
         } else {
             $list .= "!Unknown search type!\n";
@@ -114,6 +114,19 @@ sub restSweep {
         close FILE;
     }
     return undef;
+}
+
+sub _doSolrSearch {
+    my ( $query, $web, $topic ) = @_;
+
+    my $webparam = ($web)?" web:$web":'';
+    my $response = Foswiki::Func::expandCommonVariables( <<SEARCH, $topic, $web );
+%SOLRSEARCH{"type:topic $query$webparam" fields="webtopic" format="\$webtopic" separator="|" rows="999"}%
+SEARCH
+
+    $response =~ s#^\s*##;
+    $response =~ s#\s*$##;
+    return split('\|', $response);
 }
 
 sub _doStandardSearch {
