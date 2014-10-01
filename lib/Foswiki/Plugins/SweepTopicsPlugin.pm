@@ -72,11 +72,11 @@ sub restSweep {
         my $query = $4;
         $list.= "</p>\n<p>---$action in $sweepWeb with $type: '$query'---<br />\n";
 
-        my $topics = '';
+        my @topicArray;
         if ($type =~ m/^\s*QuerySearch\s*$/) {
-            $topics = _doStandardSearch($query, $sweepWeb, $ctopic);
+            @topicArray = _doStandardSearch($query, $sweepWeb, $ctopic);
         } elsif ($type =~ m/^\s*SolrSearch\s*$/ && 'not yet' eq 'implemented') {
-            $topics = _doSolrSearch($query, $sweepWeb, $ctopic);
+            @topicArray = _doSolrSearch($query, $sweepWeb, $ctopic);
         } else {
             $list .= "!Unknown search type!\n";
             next;
@@ -86,7 +86,6 @@ sub restSweep {
             $list .= "!Unknown action: '$action'!\n";
             next;
         }
-        my @topicArray = split('\|', $topics);
 
         foreach my $eachWebTopic (@topicArray) {
             my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
@@ -124,7 +123,7 @@ sub _doStandardSearch {
 %SEARCH{"$query" format="\$web.\$topic" separator="|" type="query" nonoise="on" web="$web"}%
 SEARCH
 
-    return $response;
+    return split('\|', $response);
 }
 
 # Will find a topic in trashweb to move $web.$topic to by adding a numbered suffix.
