@@ -25,7 +25,7 @@ use Error ':try';
 # *must* exist in this package. This should always be in the format
 # $Rev$ so that Foswiki can determine the checked-in status of the
 # extension.
-our $VERSION = '$Rev$';
+our $VERSION = '1.0';
 
 # $RELEASE is used in the "Find More Extensions" automation in configure.
 # It is a manually maintained string used to identify functionality steps.
