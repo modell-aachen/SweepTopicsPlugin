@@ -88,12 +88,13 @@ sub restSweep {
         }
         my @topicArray = split('\|', $topics);
 
-        foreach my $eachTopic (@topicArray) {
-            $list .= "$sweepWeb.$eachTopic <br />\n";
+        foreach my $eachWebTopic (@topicArray) {
+            my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
+            $list .= "$eachWeb.$eachTopic <br />\n";
             unless ($listonly) {
                 try {
                     $deletedSth++;
-                    _trashTopic( $sweepWeb, $eachTopic );
+                    _trashTopic( $eachWeb, $eachTopic );
                 } catch Error::Simple with {
                     my $e = shift;
                     Foswiki::Func::writeWarning( $e );
@@ -120,7 +121,7 @@ sub _doStandardSearch {
     my ( $query, $web, $topic ) = @_;
 
     my $response = Foswiki::Func::expandCommonVariables( <<SEARCH, $topic, $web );
-%SEARCH{"$query" format="\$topic" separator="|" type="query" nonoise="on" web="$web"}%
+%SEARCH{"$query" format="\$web.\$topic" separator="|" type="query" nonoise="on" web="$web"}%
 SEARCH
 
     return $response;
