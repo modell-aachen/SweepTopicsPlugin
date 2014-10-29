@@ -61,6 +61,7 @@ sub restSweep {
     my $list = '<p>Result:';
     my $deletedSth = 0;
     my $transitionedSth = 0;
+    my $errors = 0;
 
     my ($meta, $text) = Foswiki::Func::readTopic($cweb, $ctopic);
 
@@ -95,6 +96,7 @@ sub restSweep {
                         my $e = shift;
                         Foswiki::Func::writeWarning( $e );
                         $list .= '! Error !';
+                        $errors++;
                     }
                 }
             }
@@ -107,12 +109,14 @@ sub restSweep {
                 unless ($params =~ m#state="(.*?)"#) {
                     Foswiki::Func::writeWarning("Missing state in $action");
                     $list .= '! Error !';
+                    $errors++;
                     next;
                 }
                 $transitionParams->{state} = $1;
                 unless ($params =~ m#action="(.*?)"#) {
                     Foswiki::Func::writeWarning("Missing action in $action");
                     $list .= '! Error !';
+                    $errors++;
                     next;
                 }
                 $transitionParams->{action} = $1;
@@ -147,22 +151,25 @@ sub restSweep {
                         my $params = $e->{params};
                         Foswiki::Func::writeWarning( "def: $e->{def} params: ".join(',', @$params ));
                         $list .= '! Error !';
+                        $errors++;
                     }
                 }
             }
         } else {
             # nothing but delete yet
             $list .= "!Unknown action: '$action'!\n";
+            $errors++;
             next;
         }
     }
     $list .= "</p>\n<p>Deleted: $deletedSth </p>\n"; # These will be meaningless on Test-runs, yet reassuring
     $list .= "</p>\n<p>Transitioned: $transitionedSth </p>\n";
+    $list .= "</p>\n<p>Errors: $errors </p>\n";
     $list = "<html><head></head><body>$list</body></html>";
     if ($listonly) {
         return $list;
     }
-    if ($deletedSth || $transitionedSth) {
+    if ($deletedSth || $transitionedSth || ($errors && !$listonly)) {
         my $w = Foswiki::Func::getWorkArea( "SweepTopicsPlugin" );
         open FILE, ">", $w.'/'.time().'.log';
         print FILE $list;
