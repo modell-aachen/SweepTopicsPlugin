@@ -61,6 +61,7 @@ sub restSweep {
     my $list = '<p>Result:';
     my $deletedSth = 0;
     my $transitionedSth = 0;
+    my $updatedActions = 0;
     my $errors = 0;
 
     my ($meta, $text) = Foswiki::Func::readTopic($cweb, $ctopic);
@@ -79,6 +80,8 @@ sub restSweep {
             @topicArray = _doStandardSearch($query, $sweepWeb, $ctopic);
         } elsif ($type =~ m/^\s*SolrSearch\s*$/) {
             @topicArray = _doSolrSearch($query, $sweepWeb, $ctopic);
+        } elsif ($type =~ m/^\s*SolrActionSearch\s*$/) {
+            @topicArray = _doSolrActionSearch($query, $sweepWeb, $ctopic);
         } else {
             $list .= "!Unknown search type!\n";
             next;
@@ -155,6 +158,41 @@ sub restSweep {
                     }
                 }
             }
+        } elsif ($action =~ m#ActionTracker\((.*)\)#) {
+            my $actionString = $1;
+            my %changes;
+            if($actionString =~ m#state\s*=\s*"(.*?)"#) {
+                $changes{'state'} = $1;
+            }
+            if(scalar keys %changes) {
+                use Foswiki::Plugins::ActionTrackerPlugin;
+                foreach my $eachWebTopicUid (@topicArray) {
+                    next unless $eachWebTopicUid =~ m/^(.+)#(.+)$/;
+                    my $eachWebTopic = $1;
+                    my $eachUid = $2;
+                    my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
+                    $list .= "$eachWeb.$eachTopic#$eachUid <br />\n";
+                    unless ($listonly) {
+                        try {
+                            Foswiki::Plugins::ActionTrackerPlugin::lazyInit( $eachWeb, $eachTopic );
+                            Foswiki::Plugins::ActionTrackerPlugin::_updateSingleAction($eachWeb, $eachTopic, $eachUid, %changes); # XXX private method
+                            $updatedActions++;
+                        }
+                        catch Error::Simple with {
+                            my $e = shift;
+                            Foswiki::Func::writeWarning($e);
+                            $list .='! Error !';
+                            $errors++;
+                        }
+                        catch Foswiki::AccessControlException with {
+                            my $e = shift;
+                            Foswiki::Func::writeWarning($e);
+                            $list .='! Error !';
+                            $errors++;
+                        };
+                    }
+                }
+            }
         } else {
             # nothing but delete yet
             $list .= "!Unknown action: '$action'!\n";
@@ -164,18 +202,32 @@ sub restSweep {
     }
     $list .= "</p>\n<p>Deleted: $deletedSth </p>\n"; # These will be meaningless on Test-runs, yet reassuring
     $list .= "</p>\n<p>Transitioned: $transitionedSth </p>\n";
+    $list .= "</p>\n<p>Actions: $updatedActions </p>\n";
     $list .= "</p>\n<p>Errors: $errors </p>\n";
     $list = "<html><head></head><body>$list</body></html>";
     if ($listonly) {
         return $list;
     }
-    if ($deletedSth || $transitionedSth || ($errors && !$listonly)) {
+    if ($deletedSth || $transitionedSth || $updatedActions || ($errors && !$listonly)) {
         my $w = Foswiki::Func::getWorkArea( "SweepTopicsPlugin" );
         open FILE, ">", $w.'/'.time().'.log';
         print FILE $list;
         close FILE;
     }
     return undef;
+}
+
+sub _doSolrActionSearch {
+    my ( $query, $web, $topic ) = @_;
+
+    my $webparam = ($web)?" web:$web":'';
+    my $response = Foswiki::Func::expandCommonVariables( <<SEARCH, $topic, $web );
+%SOLRSEARCH{"type:action $query$webparam" fields="webtopic,action_uid_s" format="\$webtopic#\$action_uid_s" separator="|" rows="999"}%
+SEARCH
+
+    $response =~ s#^\s*##;
+    $response =~ s#\s*$##;
+    return split('\|', $response);
 }
 
 sub _doSolrSearch {
