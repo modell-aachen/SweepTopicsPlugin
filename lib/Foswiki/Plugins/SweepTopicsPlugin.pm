@@ -62,6 +62,7 @@ sub restSweep {
     my $deletedSth = 0;
     my $transitionedSth = 0;
     my $updatedActions = 0;
+    my $updatedFields = 0;
     my $errors = 0;
 
     my ($meta, $text) = Foswiki::Func::readTopic($cweb, $ctopic);
@@ -193,8 +194,42 @@ sub restSweep {
                     }
                 }
             }
+        } elsif ($action =~ m#FormField\((.*)\)#) {
+            my $actionString = $1;
+            my %changes;
+            while($actionString =~ m#"(\S+?)"\s*=\s*"(.*?)"#g) {
+                $changes{$1} = $2;
+            }
+            if(scalar keys %changes) {
+                foreach my $eachWebTopic (@topicArray) {
+                    my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
+                    $list .= "$eachWeb.$eachTopic <br />\n";
+                    next unless Foswiki::Func::topicExists($eachWeb, $eachTopic);
+                    unless ($listonly) {
+                        try {
+                            my ($meta, $text) = Foswiki::Func::readTopic($eachWeb, $eachTopic);
+                            foreach my $key ( keys %changes ) {
+                                $meta->putKeyed('FIELD', { name => $key, title => $key, value => $changes{$key} });
+                            }
+                            Foswiki::Func::saveTopic($eachWeb, $eachTopic, $meta, $text, { forcenewrevision => 1 });
+                            $updatedFields++;
+                        }
+                        catch Error::Simple with {
+                            my $e = shift;
+                            Foswiki::Func::writeWarning($e);
+                            $list .='! Error !';
+                            $errors++;
+                        }
+                        catch Foswiki::AccessControlException with {
+                            my $e = shift;
+                            Foswiki::Func::writeWarning($e);
+                            $list .='! Error !';
+                            $errors++;
+                        };
+                    }
+                }
+            }
         } else {
-            # nothing but delete yet
             $list .= "!Unknown action: '$action'!\n";
             $errors++;
             next;
@@ -203,6 +238,7 @@ sub restSweep {
     $list .= "</p>\n<p>Deleted: $deletedSth </p>\n"; # These will be meaningless on Test-runs, yet reassuring
     $list .= "</p>\n<p>Transitioned: $transitionedSth </p>\n";
     $list .= "</p>\n<p>Actions: $updatedActions </p>\n";
+    $list .= "</p>\n<p>Fields: $updatedFields </p>\n";
     $list .= "</p>\n<p>Errors: $errors </p>\n";
     $list = "<html><head></head><body>$list</body></html>";
     if ($listonly) {
