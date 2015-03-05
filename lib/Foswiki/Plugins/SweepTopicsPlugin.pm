@@ -60,6 +60,7 @@ sub restSweep {
 
     my $list = '<p>Result:';
     my $deletedSth = 0;
+    my $movedSth = 0;
     my $transitionedSth = 0;
     my $updatedActions = 0;
     my $updatedFields = 0;
@@ -98,6 +99,42 @@ sub restSweep {
                         _trashTopic( $eachWeb, $eachTopic );
                     } catch Error::Simple with {
                         my $e = shift;
+                        Foswiki::Func::writeWarning( $e );
+                        $list .= '! Error !';
+                        $errors++;
+                    }
+                }
+            }
+        } elsif ($action =~ m#Move\((.*)\)#) {
+            my $actionString = $1;
+            foreach my $eachWebTopic (@topicArray) {
+                my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
+                my $eachActionString = Foswiki::Func::expandCommonVariables( $actionString, $eachTopic, $eachWeb );
+
+                my $targetWeb = $eachWeb;
+                if($eachActionString =~ m/web="(.*?)"/) {
+                    $targetWeb = $1;
+                }
+                my $expandedTopic = $eachTopic;
+                if($eachActionString =~ m/topic="(.*?)"/) {
+                    $expandedTopic = $1;
+                }
+
+                my $counter = 0;
+                my $targetTopic = $expandedTopic;
+                while(Foswiki::Func::topicExists($targetWeb, $targetTopic)) {
+                    $counter++;
+                    $targetTopic = "${expandedTopic}_$counter";
+                }
+
+                $list .= "$eachWeb.$eachTopic -> $targetWeb.$targetTopic<br />\n";
+                unless ($listonly) {
+                    try {
+                        $movedSth++;
+                        Foswiki::Func::moveTopic( $eachWeb, $eachTopic, $targetWeb, $targetTopic );
+                    } catch Error::Simple with {
+                        my $e = shift;
+                        Foswiki::Func::writeWarning("Error while moving $eachWeb.$eachTopic -> $targetWeb.$targetTopic");
                         Foswiki::Func::writeWarning( $e );
                         $list .= '! Error !';
                         $errors++;
@@ -236,6 +273,7 @@ sub restSweep {
         }
     }
     $list .= "</p>\n<p>Deleted: $deletedSth </p>\n"; # These will be meaningless on Test-runs, yet reassuring
+    $list .= "</p>\n<p>Moved: $movedSth </p>\n";
     $list .= "</p>\n<p>Transitioned: $transitionedSth </p>\n";
     $list .= "</p>\n<p>Actions: $updatedActions </p>\n";
     $list .= "</p>\n<p>Fields: $updatedFields </p>\n";
