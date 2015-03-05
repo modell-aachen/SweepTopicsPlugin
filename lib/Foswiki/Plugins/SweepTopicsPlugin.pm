@@ -69,7 +69,7 @@ sub restSweep {
 
     return 'Controller table not found!' unless $text =~ m#^\|\s+\*?Action\*?\s+\|\s+\*?Type\*?\s+\|\s+\*?Web\*?\s+\|\s+\*?Query\*?\s+\|\s*?\n#g;
 
-    while ($text =~ m#\G\|\s*([^|]+)\s*\|\s*([^|\s]*)\s*\|\s*([^|\s]*)\s*\|\s*([^|]+?)\s*\|\s*?\n#g) {
+    while ($text =~ m#\G\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*([^|]+?)\s*\|\s*?\n#g) {
         my $action = $1;
         my $type = $2;
         my $sweepWeb = $3 || $cweb;
@@ -77,11 +77,11 @@ sub restSweep {
         $list.= "</p>\n<p>---$action in $sweepWeb with $type: '$query'---<br />\n";
 
         my @topicArray;
-        if ($type =~ m/^\s*QuerySearch\s*$/) {
+        if ($type eq 'QuerySearch') {
             @topicArray = _doStandardSearch($query, $sweepWeb, $ctopic);
-        } elsif ($type =~ m/^\s*SolrSearch\s*$/) {
+        } elsif ($type eq 'SolrSearch') {
             @topicArray = _doSolrSearch($query, $sweepWeb, $ctopic);
-        } elsif ($type =~ m/^\s*SolrActionSearch\s*$/) {
+        } elsif ($type eq 'SolrActionSearch') {
             @topicArray = _doSolrActionSearch($query, $sweepWeb, $ctopic);
         } else {
             $list .= "!Unknown search type!\n";
