@@ -71,11 +71,11 @@ sub restSweep {
     return 'Controller table not found!' unless $text =~ m#^\|\s+\*?Action\*?\s+\|\s+\*?Type\*?\s+\|\s+\*?Web\*?\s+\|\s+\*?Query\*?\s+\|\s*?\n#g;
 
     while ($text =~ m#\G\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*([^|]+?)\s*\|\s*?\n#g) {
-        my $action = $1;
+        my $actionCell = $1;
         my $type = $2;
         my $sweepWeb = $3 || $cweb;
         my $query = $4;
-        $list.= "</p>\n<p>---$action in $sweepWeb with $type: '$query'---<br />\n";
+        $list.= "</p>\n<p>---$actionCell in $sweepWeb with $type: '$query'---<br />\n";
 
         my @topicArray;
         if ($type eq 'QuerySearch') {
@@ -89,9 +89,12 @@ sub restSweep {
             next;
         }
 
-        if ($action eq 'Delete') {
-            foreach my $eachWebTopic (@topicArray) {
-                my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
+        foreach my $eachWebTopic (@topicArray) {
+            my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
+            my $action = $actionCell;
+            $action =~ s#expand\("((?:\\"|[^"])*)"\)#_doExpand($eachWeb, $eachTopic, $1)#ge;
+
+            if ($action eq 'Delete') {
                 $list .= "$eachWeb.$eachTopic <br />\n";
                 unless ($listonly) {
                     try {
@@ -104,12 +107,8 @@ sub restSweep {
                         $errors++;
                     }
                 }
-            }
-        } elsif ($action =~ m#Move\((.*)\)#) {
-            my $actionString = $1;
-            foreach my $eachWebTopic (@topicArray) {
-                my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
-                my $eachActionString = Foswiki::Func::expandCommonVariables( $actionString, $eachTopic, $eachWeb );
+            } elsif ($action =~ m#Move\((.*)\)#) {
+                my $eachActionString = $1;
 
                 my $targetWeb = $eachWeb;
                 if($eachActionString =~ m/web="(.*?)"/) {
@@ -140,43 +139,40 @@ sub restSweep {
                         $errors++;
                     }
                 }
-            }
-        } elsif ($action =~ m#Transition\((.*)\)#) {
-            my $transitionsString = $1;
-            my @transitions = ();
-            while($transitionsString =~ m#{(.*?)}#g) {
-                my $params = $1;
-                my $transitionParams = {};
-                unless ($params =~ m#state="(.*?)"#) {
-                    Foswiki::Func::writeWarning("Missing state in $action");
-                    $list .= '! Error !';
-                    $errors++;
-                    next;
-                }
-                $transitionParams->{state} = $1;
-                unless ($params =~ m#action="(.*?)"#) {
-                    Foswiki::Func::writeWarning("Missing action in $action");
-                    $list .= '! Error !';
-                    $errors++;
-                    next;
-                }
-                $transitionParams->{action} = $1;
-                my $remark;
-                if ($params =~ m#remark="(.*?)"#) {
-                    $remark = $1;
-                }
-                my $deleteComments;
-                if ($params =~ m#deleteComments="(.*?)"#) {
+            } elsif ($action =~ m#Transition\((.*)\)#) {
+                my $transitionsString = $1;
+                my @transitions = ();
+                while($transitionsString =~ m#{(.*?)}#g) {
+                    my $params = $1;
+                    my $transitionParams = {};
+                    unless ($params =~ m#state="(.*?)"#) {
+                        Foswiki::Func::writeWarning("Missing state in $action");
+                        $list .= '! Error !';
+                        $errors++;
+                        next;
+                    }
+                    $transitionParams->{state} = $1;
+                    unless ($params =~ m#action="(.*?)"#) {
+                        Foswiki::Func::writeWarning("Missing action in $action");
+                        $list .= '! Error !';
+                        $errors++;
+                        next;
+                    }
                     $transitionParams->{action} = $1;
+                    my $remark;
+                    if ($params =~ m#remark="(.*?)"#) {
+                        $remark = $1;
+                    }
+                    my $deleteComments;
+                    if ($params =~ m#deleteComments="(.*?)"#) {
+                        $transitionParams->{action} = $1;
+                    }
+                    $transitionParams->{breaklock} = 1;
+                    if ($params =~ m#breaklock="(.*?)"#) {
+                        $transitionParams->{breaklock} = $1;
+                    }
+                    push(@transitions, $transitionParams);
                 }
-                $transitionParams->{breaklock} = 1;
-                if ($params =~ m#breaklock="(.*?)"#) {
-                    $transitionParams->{breaklock} = $1;
-                }
-                push(@transitions, $transitionParams);
-            }
-            foreach my $eachWebTopic (@topicArray) {
-                my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
                 $list .= "$eachWeb.$eachTopic <br />\n";
                 unless ($listonly) {
                     try {
@@ -194,82 +190,87 @@ sub restSweep {
                         $list .= '! Error !';
                         $errors++;
                     }
-                }
-            }
-        } elsif ($action =~ m#ActionTracker\((.*)\)#) {
-            my $actionString = $1;
-            my %changes;
-            if($actionString =~ m#state\s*=\s*"(.*?)"#) {
-                $changes{'state'} = $1;
-            }
-            if(scalar keys %changes) {
-                use Foswiki::Plugins::ActionTrackerPlugin;
-                foreach my $eachWebTopicUid (@topicArray) {
-                    next unless $eachWebTopicUid =~ m/^(.+)#(.+)$/;
-                    my $eachWebTopic = $1;
-                    my $eachUid = $2;
-                    my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
-                    $list .= "$eachWeb.$eachTopic#$eachUid <br />\n";
-                    unless ($listonly) {
-                        try {
-                            Foswiki::Plugins::ActionTrackerPlugin::lazyInit( $eachWeb, $eachTopic );
-                            Foswiki::Plugins::ActionTrackerPlugin::_updateSingleAction($eachWeb, $eachTopic, $eachUid, %changes); # XXX private method
-                            $updatedActions++;
-                        }
-                        catch Error::Simple with {
-                            my $e = shift;
-                            Foswiki::Func::writeWarning($e);
-                            $list .='! Error !';
-                            $errors++;
-                        }
-                        catch Foswiki::AccessControlException with {
-                            my $e = shift;
-                            Foswiki::Func::writeWarning($e);
-                            $list .='! Error !';
-                            $errors++;
-                        };
+                } else {
+                    foreach my $transition ( @transitions ) {
+                        $list .= "&nbsp;&nbsp;" . $transition->{action};
+                        $list .= "<br/>";
                     }
                 }
-            }
-        } elsif ($action =~ m#FormField\((.*)\)#) {
-            my $actionString = $1;
-            my %changes;
-            while($actionString =~ m#"(\S+?)"\s*=\s*"(.*?)"#g) {
-                $changes{$1} = $2;
-            }
-            if(scalar keys %changes) {
-                foreach my $eachWebTopic (@topicArray) {
-                    my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
-                    $list .= "$eachWeb.$eachTopic <br />\n";
-                    next unless Foswiki::Func::topicExists($eachWeb, $eachTopic);
-                    unless ($listonly) {
-                        try {
-                            my ($meta, $text) = Foswiki::Func::readTopic($eachWeb, $eachTopic);
-                            foreach my $key ( keys %changes ) {
-                                $meta->putKeyed('FIELD', { name => $key, title => $key, value => $changes{$key} });
+            } elsif ($action =~ m#ActionTracker\((.*)\)#) {
+                my $actionString = $1;
+                my %changes;
+                if($actionString =~ m#state\s*=\s*"(.*?)"#) {
+                    $changes{'state'} = $1;
+                }
+                if(scalar keys %changes) {
+                    use Foswiki::Plugins::ActionTrackerPlugin;
+                    foreach my $eachWebTopicUid (@topicArray) {
+                        next unless $eachWebTopicUid =~ m/^(.+)#(.+)$/;
+                        my $eachWebTopic = $1;
+                        my $eachUid = $2;
+                        my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
+                        $list .= "$eachWeb.$eachTopic#$eachUid <br />\n";
+                        unless ($listonly) {
+                            try {
+                                Foswiki::Plugins::ActionTrackerPlugin::lazyInit( $eachWeb, $eachTopic );
+                                Foswiki::Plugins::ActionTrackerPlugin::_updateSingleAction($eachWeb, $eachTopic, $eachUid, %changes); # XXX private method
+                                $updatedActions++;
                             }
-                            Foswiki::Func::saveTopic($eachWeb, $eachTopic, $meta, $text, { forcenewrevision => 1 });
-                            $updatedFields++;
+                            catch Error::Simple with {
+                                my $e = shift;
+                                Foswiki::Func::writeWarning($e);
+                                $list .='! Error !';
+                                $errors++;
+                            }
+                            catch Foswiki::AccessControlException with {
+                                my $e = shift;
+                                Foswiki::Func::writeWarning($e);
+                                $list .='! Error !';
+                                $errors++;
+                            };
                         }
-                        catch Error::Simple with {
-                            my $e = shift;
-                            Foswiki::Func::writeWarning($e);
-                            $list .='! Error !';
-                            $errors++;
-                        }
-                        catch Foswiki::AccessControlException with {
-                            my $e = shift;
-                            Foswiki::Func::writeWarning($e);
-                            $list .='! Error !';
-                            $errors++;
-                        };
                     }
                 }
+            } elsif ($action =~ m#FormField\((.*)\)#) {
+                my $actionString = $1;
+                my %changes;
+                while($actionString =~ m#"(\S+?)"\s*=\s*"(.*?)"#g) {
+                    $changes{$1} = $2;
+                }
+                if(scalar keys %changes) {
+                    foreach my $eachWebTopic (@topicArray) {
+                        my ($eachWeb, $eachTopic) = Foswiki::Func::normalizeWebTopicName(undef, $eachWebTopic);
+                        $list .= "$eachWeb.$eachTopic <br />\n";
+                        next unless Foswiki::Func::topicExists($eachWeb, $eachTopic);
+                        unless ($listonly) {
+                            try {
+                                my ($meta, $text) = Foswiki::Func::readTopic($eachWeb, $eachTopic);
+                                foreach my $key ( keys %changes ) {
+                                    $meta->putKeyed('FIELD', { name => $key, title => $key, value => $changes{$key} });
+                                }
+                                Foswiki::Func::saveTopic($eachWeb, $eachTopic, $meta, $text, { forcenewrevision => 1 });
+                                $updatedFields++;
+                            }
+                            catch Error::Simple with {
+                                my $e = shift;
+                                Foswiki::Func::writeWarning($e);
+                                $list .='! Error !';
+                                $errors++;
+                            }
+                            catch Foswiki::AccessControlException with {
+                                my $e = shift;
+                                Foswiki::Func::writeWarning($e);
+                                $list .='! Error !';
+                                $errors++;
+                            };
+                        }
+                    }
+                }
+            } else {
+                $list .= "!Unknown action: '$action'!\n";
+                $errors++;
+                next;
             }
-        } else {
-            $list .= "!Unknown action: '$action'!\n";
-            $errors++;
-            next;
         }
     }
     $list .= "</p>\n<p>Deleted: $deletedSth </p>\n"; # These will be meaningless on Test-runs, yet reassuring
@@ -345,6 +346,14 @@ sub _trashTopic {
     }
 
     Foswiki::Func::moveTopic( $web, $topic, $trashWeb, $numberedTrashTopic );
+}
+
+sub _doExpand {
+    my ($web, $topic, $param) = @_;
+
+    $param =~ s#\\"#"#g;
+    $param = Foswiki::Func::decodeFormatTokens($param);
+    return Foswiki::Func::expandCommonVariables($param, $topic, $web);
 }
 
 1;
