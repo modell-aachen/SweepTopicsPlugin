@@ -171,14 +171,27 @@ sub restSweep {
                     if ($params =~ m#breaklock="(.*?)"#) {
                         $transitionParams->{breaklock} = $1;
                     }
+                    while ($params =~ m#param\s*=\s*"(\w*)\s*=\s*(.*?)"#g) {
+                        $transitionParams->{extra}->{$1} = $2;
+                    }
                     push(@transitions, $transitionParams);
                 }
                 $list .= "$eachWeb.$eachTopic <br />\n";
                 unless ($listonly) {
                     try {
                         $transitionedSth++;
+                        my $saved = {};
                         foreach my $transition (@transitions) {
+                            if($transition->{extra}) {
+                                foreach my $extra (keys %{$transition->{extra}}) {
+                                    $saved->{$extra} = Foswiki::Func::getPreferencesValue($extra) || '';
+                                    Foswiki::Func::setPreferencesValue($extra, $transition->{extra}->{$extra});
+                                }
+                            }
                             my $report = Foswiki::Plugins::KVPPlugin::transitionTopic($session, $eachWeb, $eachTopic, $transition->{action}, $transition->{state}, $transition->{remark}, $transition->{deleteComments}, $transition->{breaklock});
+                            foreach my $savedPref (keys %$saved) {
+                                Foswiki::Func::setPreferencesValue($savedPref, $saved->{$savedPref});
+                            }
                             next unless $report;
                             $eachWeb = $report->{webAfterTransition} || $eachWeb;
                             $eachTopic = $report->{topicAfterTransition} || $eachTopic;
@@ -193,6 +206,12 @@ sub restSweep {
                 } else {
                     foreach my $transition ( @transitions ) {
                         $list .= "&nbsp;&nbsp;" . $transition->{action};
+                        if(scalar keys %{$transition->{extra}}) {
+                            $list .= " with";
+                            foreach my $key ( keys %{$transition->{extra}} ) {
+                                $list .= " $key='$transition->{extra}->{$key}'";
+                            }
+                        }
                         $list .= "<br/>";
                     }
                 }
