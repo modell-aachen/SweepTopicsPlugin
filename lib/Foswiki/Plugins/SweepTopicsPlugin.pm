@@ -159,9 +159,8 @@ sub restSweep {
                         next;
                     }
                     $transitionParams->{action} = $1;
-                    my $remark;
                     if ($params =~ m#remark="(.*?)"#) {
-                        $remark = $1;
+                        $transitionParams->{remark} = $1;
                     }
                     if ($params =~ m#deleteComments="(.*?)"#) {
                         $transitionParams->{deleteComments} = $1;
