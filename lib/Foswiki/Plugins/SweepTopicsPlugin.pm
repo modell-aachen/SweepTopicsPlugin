@@ -163,9 +163,8 @@ sub restSweep {
                     if ($params =~ m#remark="(.*?)"#) {
                         $remark = $1;
                     }
-                    my $deleteComments;
                     if ($params =~ m#deleteComments="(.*?)"#) {
-                        $transitionParams->{action} = $1;
+                        $transitionParams->{deleteComments} = $1;
                     }
                     $transitionParams->{breaklock} = 1;
                     if ($params =~ m#breaklock="(.*?)"#) {
