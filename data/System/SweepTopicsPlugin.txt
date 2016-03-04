@@ -90,6 +90,7 @@ Parameters:
 | =deleteComments= | =1= / =0= | Delete !MetaComments. |
 | =breaklock= | =1= / =0= | Break edit-locks if required. |
 | =param= | =Name=Value= | Multiple =param= parameters possible. Each =Name= will be set to =value= before doing the transition.%BR%Eg.  here %%NOP%TransitionType% will be set to =Automated= and %%NOP%Date% will be set to the server's time when the transition is performed: <pre>Transition({state="..." action="..." param="TransitionType = Automated" param="Date=%%NOP%SERVERTIME%"})</pre> |
+| =keeptopic= | =1= / =0= | Usually when there are multiple transitions, each transition will be done on the same topic. If that topic changes name (FORK) the plugin will keep track. With this enabled, it will not change the topic name. This is useful for forking multiple topics. |
 
 ---++++ !ActionTracker
 Sets actions to a state.

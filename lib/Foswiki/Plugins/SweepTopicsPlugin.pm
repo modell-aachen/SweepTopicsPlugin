@@ -169,6 +169,9 @@ sub restSweep {
                     if ($params =~ m#breaklock="(.*?)"#) {
                         $transitionParams->{breaklock} = $1;
                     }
+                    if ($params =~ m#keeptopic="(\d*)"#) {
+                        $transitionParams->{keeptopic} = $1;
+                    }
                     while ($params =~ m#param\s*=\s*"(\w*)\s*=\s*(.*?)"#g) {
                         $transitionParams->{extra}->{$1} = $2;
                     }
@@ -191,8 +194,10 @@ sub restSweep {
                                 Foswiki::Func::setPreferencesValue($savedPref, $saved->{$savedPref});
                             }
                             next unless $report;
-                            $eachWeb = $report->{webAfterTransition} || $eachWeb;
-                            $eachTopic = $report->{topicAfterTransition} || $eachTopic;
+                            unless($transition->{keeptopic}) {
+                                $eachWeb = $report->{webAfterTransition} || $eachWeb;
+                                $eachTopic = $report->{topicAfterTransition} || $eachTopic;
+                            }
                         }
                     } catch Foswiki::OopsException with {
                         my $e = shift;
