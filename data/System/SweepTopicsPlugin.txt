@@ -10,19 +10,26 @@ prefer.
 
 %TOC%
 
+---++ Description
+The plugin is intended to perform regular tasks on topics.
+
+A search is used to collect topics and a number of actions are available. Each action is performed on every found topic individually.
+Macros in the table will be expanded.
+
 ---++ Usage
-Es muss eine Kontrollseite mit den &Uuml;berschriften
+---+++ The controlling topic
+The plugin uses a controller topic that must contain a control-table with the following headers:
 <pre>
 | *Action* | *Type* | *Web* | *Query* |
 </pre>
-angelegt werden. Dort k&ouml;nnen mehrere L&ouml;schauftr&auml;ge in je einer Zeile angelegt werden. Es sind zu definieren:
-| *Parameter* | *Funktion* |
-| =Action= | Was mit den Seiten zu tun ist, im Moment ist nur =Delete= (also verschieben ins TrashWeb) m&ouml;glich. |
-| =Type= | Der Typ der Suche. Zur Zeit wird nur =QuerySearch= (Foswiki-Standardsuche mit type="query") unterst&uuml;tzt. |
-| =Web= | Das Bereich, in dem die Seiten gesucht werden. Falls leer, wird der Bereich mit dem Kontrollartikel genutzt |
-| =Query= | Mit dieser Query werden die zu l&ouml;schenden Seiten gesucht. |
+Each row in this table will contain a search and an action to perform on found topics. These parameters need to be defined:
+| *Parameter* | *Function* |
+| =Action= | The action to perform on the topic. Currently supported:<dl><dt> [[#Transition][Transition]] </dt><dd> [[KVPPlugin]] integration </dd><dt> [[#Delete][Delete]] </dt><dd> Delete topics </dd><dt> [[#Move][Move]] </dt><dd> Move/Rename topics </dd><dt> [[#ActionTracker][ActionTracker]] </dt><dd>Change task-states for ActionTrackerPlugin</dd><dt> [[#FormField][FormField]] </dt><dd> Change [[DataForms][form metadata]] </dd></dl> |
+| =Type= | Type of search. Currently supported:<dl><dt> =QuerySearch= </dt><dd>Foswiki's standard search</dd><dt> =SolrSearch= </dt><dd>Use SolrPlugin's =%%NOP%SOLRSEARCH{...}%= </dd><dt> =SolrActionSearch= </dt><dd> A solr search with =type:action= and fields optimized for actions. </dd></dl> |
+| =Web= | The web to perform the search in. Defaults to web of control-topic, when omitted. |
+| =Query= | Query string to be passed on to =%%NOP%SEARCH%= / =%%NOP%SOLRSEARCH%= |
 
-Durch folgenden Befehl kann ein Test-Knopf hinzugef&uuml;gt werden, welcher die zu l&ouml;schenden Seiten anzeigt:
+Append the following code for a test button.
 <pre>
 %<nop>INCLUDE{"%<nop>SYSTEMWEB%.SweepTopicsPlugin" section="TestButton"}%
 </pre>
@@ -37,19 +44,103 @@ Durch folgenden Befehl kann ein Test-Knopf hinzugef&uuml;gt werden, welcher die 
 %ENDSECTION{"TestButton"}%
 -->
 
-Auf dem Server ist dann ein =CronJob= f&uuml;r den =Apache= Nutzer mit folgendem Inhalt anzulegen:
+---+++ Cron jobs
+
+Create a cron job on the server for the apache user:
 <pre>
-# Bitte Sicherstellen, dass das als Apache Nutzer ausgefuehrt wird:
-cd &lt;qwiki&gt/bin; ./rest /SweepTopicsPlugin/sweep cweb=&lt;Web von Kontrollseite&gt ctopic=&lt;Seitenname von Kontrollseite&gt;;
+# Please make sure you to do this as apache user:
+cd &lt;qwiki&gt/bin; ./rest /SweepTopicsPlugin/sweep cweb=&lt;web of the control-topic&gt ctopic=&lt;control-topic&gt;;
 </pre>
 
-In der WorkArea von dem SweepTopicsPlugin wird eine Logdatei mit der epoch-Zeit angelegt, _falls_ Seiten gel&ouml;scht wurden.
+When actions were performed, the plugin will create a log file in the work_area for the plugin.
+
+---+++ Actions
+---++++ Delete
+Moves a topic to %TRASHWEB%. This action has no parameters.
+
+Format:<pre>Delete</pre>
+
+---++++ Move
+Moves a topic
+
+Format:<pre>Move(web="..." topic="...")</pre>
+
+Parameters:
+| *Name* | *Possible values* | *Purpose* |
+| =web= | Any valid web | Target web, defaults to current web. |
+| =topic= | Any valid topic | Target topic, defaults to current topic. |
+
+If =TargetWeb.TargetTopic= already exists, a =TargetWeb.TargetTopic_AUTOINC0= will be chosen instead.
+
+---++++ Transition
+Performs a transition on a topic.
+
+Format:<pre>
+Transition({state="..." action="..."})
+</pre>
+Multiple are possible:<pre>
+Transition({state="APPROVED" action="Create discussion"}{state="DISCUSSION" action="Ask for approval"})
+</pre>
+
+Parameters:
+| *Name* | *Possible values* | *Purpose* |
+| =state= | State name _(required)_ | [[KVPPlugin]] state. |
+| =action= | Name of action _(required)_ | Name of transition to perform. |
+| =remark= | Any text | Remark for the state change. |
+| =deleteComments= | =1= / =0= | Delete !MetaComments. |
+| =breaklock= | =1= / =0= | Break edit-locks if required. |
+| =param= | =Name=Value= | Multiple =param= parameters possible. Each =Name= will be set to =value= before doing the transition.%BR%Eg.  here %%NOP%TransitionType% will be set to =Automated= and %%NOP%Date% will be set to the server's time when the transition is performed: <pre>Transition({state="..." action="..." param="TransitionType = Automated" param="Date=%%NOP%SERVERTIME%"})</pre> |
+
+---++++ !ActionTracker
+Sets actions to a state.
+
+Use =SolrActionSearch= for this action.
+
+Format: <pre>ActionTracker(state="...")</pre>
+
+Parameters:
+| *Name* | *Possible values* | *Purpose* |
+| =state= | A valid state name | State to change the action into |
+
+---++++ !FormField
+Will set a [[DataForms][form field]] to the specified value. Multiple fields can be specified.
+
+Format: <pre>FormField("MyField" = "MyValue" "MyDate"="%%NOP%SERVERTIME%")</pre>
+
+Parameters: Specify "Name"="Value" pairs.
 
 ---++ Examples
-Alle Seiten im Bereich =TestBereich= l&ouml;schen, die mit =Test= anfangen und &auml;lter als 7 Tage sind:
+
+Delete all topics in =TestWeb=, that start with =Test= and are older than 7 days:
 <pre>
 | *Action* | *Type* | *Web* | *Query* |
-| Delete | StandardSearch | TestBereich | name ~ 'Test*' and info.date < %<nop>CALC{"$TIMEADD($TIME(), -7, day)"}% |
+| Delete | StandardSearch | TestWeb | name ~ 'Test*' and info.date < %<nop>CALC{"$TIMEADD($TIME(), -7, day)"}% |
+%<nop>INCLUDE{"%<nop>SYSTEMWEB%.SweepTopicsPlugin" section="TestButton"}%
+</pre>
+
+Same as above, but use SolrPlugin:
+<pre>
+| *Action* | *Type* | *Web* | *Query* |
+| Delete | SolrSearch | TestWeb | topic:Test* date:[* TO NOW/DAY-7DAYS] |
+%<nop>INCLUDE{"%<nop>SYSTEMWEB%.SweepTopicsPlugin" section="TestButton"}%
+</pre>
+
+Discard all discussions where nothing happened for 14 days:
+<pre>
+| *Action* | *Type* | *Web* | *Query* |
+| Transition({state="DISCUSSION" action="Discard discussion"}) | SolrSearch | TestWeb | date:[* TO NOW/DAY-14DAYS] process_state_s:DISCUSSION |
+%<nop>INCLUDE{"%<nop>SYSTEMWEB%.SweepTopicsPlugin" section="TestButton"}%
+</pre>
+
+Automatically start a discussion, when approved topic is older than one year and there is no discussion.%BR%
+Ask for approval, if a discussion/draft is older than 14 days.%BR%
+Re-discuss if a document has been waiting for approval for 14 days:
+<pre>
+| *Action* | *Type* | *Web* | *Query* |
+| Transition({state="APPROVED" action="Start discussion" remark="expand($percentMAKETEXT{\"This document has been automatically resubmitted after one year. Please check if it is still valid.\"}$percent")"}) | SolrSearch | TestWeb | date:[* TO NOW/DAY-1YEAR] process_state_s:APPROVED workflow_hasdiscussion_b:false |
+| Transition({state="DISCUSSION" action="Request approval" remark="$percentMAKETEXT{\"This discussion has been inactive for two weeks. Please approve it or request further input\"}$percent"}) | SolrSearch | TestWeb | date:[* TO NOW/DAY-14DAYS] process_state_s:DISCUSSION |
+| Transition({state="DRAFT" action="Request approval" remark="expand("$percentMAKETEXT{\"This draft has been inactive for two weeks. Please approve it or request further input\"}$percent")"}) | SolrSearch | TestWeb | date:[* TO NOW/DAY-14DAYS] process_state_s:DRAFT |
+| Transition({state="expand("$percentWORKFLOWMETA$percent")" action="Request further revision" remark="expand("$percentMAKETEXT{\"This document has been waiting for approval for two weeks. Please kick some butt.\"}$percent")"}) | SolrSearch | TestWeb | date:[* TO NOW/DAY-14DAYS] process_state_s:*_REVIEW* |
 %<nop>INCLUDE{"%<nop>SYSTEMWEB%.SweepTopicsPlugin" section="TestButton"}%
 </pre>
 
@@ -59,10 +150,7 @@ Alle Seiten im Bereich =TestBereich= l&ouml;schen, die mit =Test= anfangen und &
 
 ---++ Info
 
-Many thanks to the following sponsors for supporting this work:
-   * Acknowledge any sponsors here
-
-|  Author(s): | |
+|  Author(s): | Modell Aachen GmbH |
 |  Copyright: | &copy; |
 |  License: | [[http://www.gnu.org/licenses/gpl.html][GPL (Gnu General Public License)]] |
 |  Release: | %$RELEASE% |
